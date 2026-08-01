@@ -14,23 +14,23 @@ const fs = require('fs');
         await page.goto('https://ok.ru/', { waitUntil: 'networkidle2' });
         
         console.log("Login box aane ka wait kar raha hu...");
-        // Desktop version mein box ka naam 'st.email' hota hai
         await page.waitForSelector('input[name="st.email"]', { timeout: 15000 });
         
         console.log("Details daal raha hu...");
         await page.type('input[name="st.email"]', process.env.OKRU_EMAIL);
         await page.type('input[name="st.password"]', process.env.OKRU_PASSWORD);
         
-        console.log("Login button click kar raha hu...");
+        console.log("Enter key daba raha hu...");
+        // Button dhoondhne ki jagah seedha ENTER daba denge
         await Promise.all([
             page.waitForNavigation({ waitUntil: 'networkidle2' }),
-            page.click('input[type="submit"], input[value="Log in"]') 
+            page.keyboard.press('Enter') 
         ]);
         
         const cookies = await page.cookies();
         const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
         
-        // Check karna ki login sachi mein hua ya nahi (AUTHCODE aana zaroori hai)
+        // Check karna ki login sachi mein hua ya nahi
         if (!cookieStr.includes("AUTHCODE")) {
             throw new Error("Login fail ho gaya! Shayad OK.ru ne Captcha laga diya hai.");
         }
