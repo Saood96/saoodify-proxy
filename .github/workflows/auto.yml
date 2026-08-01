@@ -1,0 +1,22 @@
+name: Auto Update Cookie
+on:
+  schedule:
+    - cron: '0 */4 * * *' # Har 4 ghante me chalega
+  workflow_dispatch: # Aap chahein toh button dabakar bhi chala sakte hain
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm install puppeteer
+      - run: node updater.js
+        env:
+          OKRU_EMAIL: ${{ secrets.OKRU_EMAIL }}
+          OKRU_PASSWORD: ${{ secrets.OKRU_PASSWORD }}
+      - name: Commit cookie.txt
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "Auto-update cookie.txt"
