@@ -18,6 +18,7 @@ async function getCookieFromGitHub() {
     }
 }
 
+// 1. Main Stream API jo .m3u8 playlist degi
 app.get('/api/stream/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
     const freshCookie = await getCookieFromGitHub();
@@ -45,10 +46,6 @@ app.get('/api/stream/:videoId', async (req, res) => {
         }
 
         if (m3u8Url && m3u8Url.startsWith('http')) {
-            // Base domain nikalna (jaise https://vd196.okcdn.ru)
-            const urlObj = new URL(m3u8Url);
-            const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
-
             const m3u8Response = await axios.get(m3u8Url, {
                 headers: {
                     'Cookie': freshCookie,
@@ -59,13 +56,19 @@ app.get('/api/stream/:videoId', async (req, res) => {
             });
 
             let playlistData = m3u8Response.data;
+            const hostUrl = `${req.protocol}://${req.get('host')}`;
 
-            // Playlist ke har chunk link ko absolute URL mein badalna
+            // Chunks ko apne server ke through route karna taaki 404 error na aaye
             playlistData = playlistData.split('\n').map(line => {
                 if (line && !line.startsWith('#')) {
-                    if (line.startsWith('http')) return line;
-                    if (line.startsWith('/')) return baseUrl + line;
-                    return baseUrl + '/' + line;
+                    let absoluteUrl = line;
+                    if (!line.startsWith('http')) {
+                        const urlObj = new URL(m3u8Url);
+                        const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+                        absoluteUrl = line.startsWith('/') ? baseUrl + line : baseUrl + '/' + line;
+                    }
+                    // Har chunk ko hamari proxy API par redirect kar do
+                    return `${hostUrl}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
                 }
                 return line;
             }).join('\n');
@@ -82,4 +85,33 @@ app.get('/api/stream/:videoId', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Absolute URL API Running`));
+// 2. Proxy Route jo asli video chunks ko fetch karke browser ko dega
+app.get('/api/proxy', async (req, res) => {
+    const targetUrl = req.query.url;
+    const freshCookie = await getCookieFromGitHub();
+
+    if (!targetUrl) {
+        return res.status(400).send("Missing URL parameter");
+    }
+
+    try {
+        const response = await axios.get(targetUrl, {
+            headers: {
+                'Cookie': freshCookie,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://ok.ru/'
+            },
+            responseType: 'stream'
+        });
+
+        // Content headers pass karna
+        if (response.headers['content-type']) {
+            res.setHeader('Content-Type', response.headers['content-type']);
+        }
+        response.data.pipe(res);
+    } catch (error) {
+        res.status(500).send("Proxy Error");
+    }
+});
+
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Ultimate Proxy API Running`));
