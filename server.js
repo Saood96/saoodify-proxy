@@ -36,33 +36,22 @@ app.get('/api/stream/:videoId', async (req, res) => {
         });
 
         const html = response.data;
-        
-        // SUPER SMART FIX: OK.ru ke saare ajeeb quotes (\&quot;) ko normal quotes (") me badal do
         let cleanHtml = html.replace(/\\+&quot;/g, '"').replace(/&quot;/g, '"').replace(/\\"/g, '"');
-        
         let m3u8Url = '';
-        // Ab simply normal "hlsManifestUrl" dhoondho (koi galti nahi hogi)
         const match = cleanHtml.match(/"hlsManifestUrl"\s*:\s*"([^"]+)"/);
         
         if (match && match[1]) {
-            // Link ke andar ke extra symbols clean karna
             m3u8Url = match[1].replace(/\\u0026/g, '&').replace(/\\\\/g, '').replace(/\\/g, '');
         }
 
         if (m3u8Url && m3u8Url.startsWith('http')) {
             console.log("✅ Perfect m3u8 link mil gaya:", m3u8Url);
             
-            try {
-                // Ab actual video stream ko fetch karo
-                const m3u8Response = await axios.get(m3u8Url, { responseType: 'stream' });
-                res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-                m3u8Response.data.pipe(res);
-            } catch (streamError) {
-                console.error("Stream Error:", streamError.message);
-                res.status(500).send("Error: OK.ru video fetch fail ho gaya.");
-            }
+            // SUPER FAST FIX: Video ko Render se pipe karne ki jagah seedha CDN par bhej do!
+            res.redirect(m3u8Url);
+            
         } else {
-            console.error("Link nahi mila. HTML kachra saaf hone ke baad bhi pattern match nahi hua.");
+            console.error("Link nahi mila. HTML clean hone ke baad bhi match fail hua.");
             res.status(404).send("Error: Video player data extract nahi ho paya.");
         }
     } catch (error) {
@@ -71,4 +60,4 @@ app.get('/api/stream/:videoId', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final Stable API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final API Running`));
