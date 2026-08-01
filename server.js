@@ -11,8 +11,7 @@ app.use((req, res, next) => {
 });
 
 // 🔴 APNI NAYI FRESH COOKIE YAHAN DAALEIN (Quotes "" ke andar)
-const OKRU_COOKIES = "YOUR_NEW_COOKIE_HERE";
-
+const OKRU_COOKIES = "JSESSIONID=b883632427c2a2e5fa44fd53154046a6e230f4cca31dd666.9b2432bc; AUTHCODE=k_QKGgLsbdsz5ts6rTVFRJKezkbaaO_hgbziqw9BtTNNhhBX4xdhZmVaQZI_ACZ8SVHYiuKlGECrXM5YDkfozUhkuTw4Egx7lymTJgNOZwa73ROrf_qtwQCZxAEJyNRrpdXm44TzuOfFDdJexA_5; _statid=d4643dcc-33d9-499b-95eb-afcfd9303f73; vdt=IqxbwNuHOWBH1+KyKwr+BTU2we4roFzCtlZFIY6T17wAAABn74EbMQeqr5sq2mEJiWcpha3dLRvkML+80Iek5EaiWVHNbMVfOQed1QQhFphZC2uzKqY0svpQ5WqfBxKQD8eHv4CrPqRQi9mX6FlP9Lj+5Br6VKRK8BOLfq7DelEzS7+hksoAZDE=; VID=";
 app.get('/api/stream/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
 
