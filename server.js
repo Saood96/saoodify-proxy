@@ -45,19 +45,31 @@ app.get('/api/stream/:videoId', async (req, res) => {
         }
 
         if (m3u8Url && m3u8Url.startsWith('http')) {
-            console.log("✅ Perfect m3u8 link mil gaya:", m3u8Url);
+            console.log("✅ Streaming m3u8 link via Render:", m3u8Url);
             
-            // SUPER FAST FIX: Video ko Render se pipe karne ki jagah seedha CDN par bhej do!
-            res.redirect(m3u8Url);
+            // OK.ru se m3u8 file mangwana with proper headers
+            const m3u8Response = await axios.get(m3u8Url, {
+                headers: {
+                    'Cookie': freshCookie,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': 'https://ok.ru/'
+                },
+                responseType: 'text'
+            });
+
+            // Playlist ke andar ke relative links ko absolute bana dena taaki 404 na aaye
+            let playlistData = m3u8Response.data;
             
+            res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+            return res.send(playlistData);
+
         } else {
-            console.error("Link nahi mila. HTML clean hone ke baad bhi match fail hua.");
             res.status(404).send("Error: Video player data extract nahi ho paya.");
         }
     } catch (error) {
         console.error("API Error:", error.message);
-        res.status(error.response ? error.response.status : 500).send(`Server Error: ${error.message}`);
+        res.status(500).send(`Server Error: ${error.message}`);
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final Stream API Running`));
