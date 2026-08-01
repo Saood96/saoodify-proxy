@@ -58,16 +58,16 @@ app.get('/api/stream/:videoId', async (req, res) => {
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
 
-            // Ultra-robust URL mapping to eliminate 404 on relative segments
+            // STRICT PROXY WRAPPER: Har chunk ko 100% proxy ke through bhejna
             playlistData = playlistData.split('\n').map(line => {
-                if (line && !line.startsWith('#')) {
+                let trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#')) {
                     try {
                         let absoluteUrl;
-                        if (line.startsWith('http://') || line.startsWith('https://')) {
-                            absoluteUrl = new URL(line);
+                        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                            absoluteUrl = new URL(trimmed);
                         } else {
-                            // Automatically resolve relative paths against the exact m3u8 base URL
-                            absoluteUrl = new URL(line, m3u8Url);
+                            absoluteUrl = new URL(trimmed, m3u8Url);
                         }
 
                         if (!absoluteUrl.search && parentSearch) {
@@ -75,6 +75,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
                         }
                         absoluteUrl.protocol = 'https:';
                         
+                        // Forcefully wrap every single chunk into the proxy route
                         return `https://saoodify-api.onrender.com/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
                     } catch (e) {
                         return line;
@@ -122,4 +123,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Absolute Resolver API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Ultimate Strict Proxy Running`));
