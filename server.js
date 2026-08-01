@@ -9,10 +9,8 @@ app.use((req, res, next) => {
     next();
 });
 
-// GitHub se direct raw cookie fetch karna
 async function getCookieFromGitHub() {
     try {
-        // Cache bypass karne ke liye Date.now() lagaya hai
         const response = await axios.get('https://raw.githubusercontent.com/Saood96/saoodify-proxy/main/cookie.txt?t=' + Date.now());
         return response.data.trim();
     } catch (err) {
@@ -21,6 +19,7 @@ async function getCookieFromGitHub() {
 }
 
 app.get('/api/stream/:videoId', async (req, res) => {
+    const videoId = req.params.videoId;
     const freshCookie = await getCookieFromGitHub();
 
     if (!freshCookie) {
@@ -28,33 +27,60 @@ app.get('/api/stream/:videoId', async (req, res) => {
     }
 
     try {
-        const okruUrl = `https://ok.ru/video/${req.params.videoId}`;
+        const okruUrl = `https://ok.ru/video/${videoId}`;
         const response = await axios.get(okruUrl, {
             headers: {
                 'Cookie': freshCookie,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
         });
 
         const html = response.data;
         let m3u8Url = '';
-        const match1 = html.match(/hlsManifestUrl\\\\&quot;:\\\\&quot;(.*?)\\\\&quot;/);
-        const match2 = html.match(/"hlsManifestUrl":"(.*?)"/);
         
-        if (match1 && match1[1]) m3u8Url = decodeURIComponent(JSON.parse(`"${match1[1]}"`)).replace(/\\\\u0026/g, '&');
-        else if (match2 && match2[1]) m3u8Url = match2[1].replace(/\\u0026/g, '&');
+        // Sabhi possible formats ko dhoondhne ke liye smart patterns
+        const patterns = [
+            /hlsManifestUrl["']?\s*[:=]\s*["']([^"']+)["']/i,
+            /\\?"hlsManifestUrl\\?"\s*:\s*\\?"(.*?)\\?"/,
+            /https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i
+        ];
+
+        for (let pattern of patterns) {
+            const match = html.match(pattern);
+            if (match && match[1]) {
+                m3u8Url = match[1].replace(/\\u0026/g, '&').replace(/\\\\/g, '');
+                break;
+            } else if (match && match[0] && match[0].startsWith('http')) {
+                m3u8Url = match[0].replace(/\\u0026/g, '&');
+                break;
+            }
+        }
+
+        // Agar direct regex fail ho, toh text me se .m3u8 link extract karna
+        if (!m3u8Url) {
+            const m3u8Index = html.indexOf('.m3u8');
+            if (m3u8Index !== -1) {
+                let start = m3u8Index;
+                while (start > 0 && !['"', "'", '(', ' '].includes(html[start])) {
+                    start--;
+                }
+                m3u8Url = html.substring(start + 1, m3u8Index + 5);
+            }
+        }
 
         if (m3u8Url) {
+            console.log("Found m3u8:", m3u8Url);
             const m3u8Response = await axios.get(m3u8Url, { responseType: 'stream' });
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             m3u8Response.data.pipe(res);
         } else {
-            // Naye code me yeh error message aayega!
-            res.status(404).send("Cookie expire ho gayi. Kripya PC Bot ko ek baar run karein.");
+            // Debugging ke liye HTML print kara lena ya error dena
+            res.status(404).send("Error: Video player data extract nahi ho paya. OK.ru ne layout change kiya hai.");
         }
     } catch (error) {
-        res.status(500).send("Server Error");
+        console.error("API Error:", error.message);
+        res.status(500).send("Server Error: " + error.message);
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final API Running`));
