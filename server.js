@@ -18,7 +18,6 @@ async function getCookieFromGitHub() {
     }
 }
 
-// 1. Main Stream API jo .m3u8 playlist degi
 app.get('/api/stream/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
     const freshCookie = await getCookieFromGitHub();
@@ -60,6 +59,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
 
+            // Strict HTTPS Replacement for every chunk URL
             playlistData = playlistData.split('\n').map(line => {
                 if (line && !line.startsWith('#')) {
                     try {
@@ -68,13 +68,10 @@ app.get('/api/stream/:videoId', async (req, res) => {
                             absoluteUrl.search = parentSearch;
                         }
                         
-                        // 🔴 MIXED CONTENT FIX: http ko https mein force convert karna
-                        let finalTargetUrl = absoluteUrl.href;
-                        if (finalTargetUrl.startsWith('http://')) {
-                            finalTargetUrl = finalTargetUrl.replace('http://', 'https://');
-                        }
+                        // Forcefully replace protocol with https
+                        absoluteUrl.protocol = 'https:';
 
-                        return `${hostUrl}/api/proxy?url=${encodeURIComponent(finalTargetUrl)}`;
+                        return `${hostUrl}/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
                     } catch (e) {
                         return line;
                     }
@@ -94,7 +91,6 @@ app.get('/api/stream/:videoId', async (req, res) => {
     }
 });
 
-// 2. Proxy Route
 app.get('/api/proxy', async (req, res) => {
     const targetUrl = req.query.url;
     const freshCookie = await getCookieFromGitHub();
@@ -122,4 +118,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify HTTPS Secure API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Force HTTPS API Running`));
