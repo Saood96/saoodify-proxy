@@ -1,6 +1,5 @@
 const express = require('express');
 const axios = require('axios');
-const puppeteer = require('puppeteer');
 const app = express();
 
 app.use((req, res, next) => {
@@ -10,50 +9,45 @@ app.use((req, res, next) => {
     next();
 });
 
-// Server ki memory me cookie save rakhne ke liye
 let CACHED_COOKIES = "";
 let isFetchingCookies = false;
 
-// 🤖 AUTO-LOGIN FUNCTION (Invisible Browser)
+// ⚡ FAST AUTO-LOGIN FUNCTION (Bina Browser Ke)
 async function getFreshCookies() {
     if (isFetchingCookies) return;
     isFetchingCookies = true;
-    console.log("Starting Auto-Login process for OK.ru...");
+    console.log("Direct API Login Start...");
 
-    let browser;
     try {
-        // Render server par invisible Chrome launch karna
-        browser = await puppeteer.launch({
-            headless: "new",
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
-        
-        const page = await browser.newPage();
-        
-        // Data bachane ke liye mobile version open karenge
-        await page.goto('https://m.ok.ru/', { waitUntil: 'domcontentloaded' });
+        const email = process.env.OKRU_EMAIL;
+        const password = process.env.OKRU_PASSWORD;
 
-        // Email aur Password type karna
-        await page.type('input[name="fr.login"]', process.env.OKRU_EMAIL);
-        await page.type('input[name="fr.password"]', process.env.OKRU_PASSWORD);
+        // OK.ru ki Mobile Login API par direct request bhejna
+        const loginResponse = await axios.post('https://m.ok.ru/dk?st.cmd=anonymLogin', 
+            new URLSearchParams({
+                'fr.login': email,
+                'fr.password': password
+            }), 
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                maxRedirects: 0, // Redirect ko rokna taaki cookies pakad sakein
+                validateStatus: status => status >= 200 && status < 400
+            }
+        );
 
-        // Login button par click karna aur page load hone ka wait karna
-        await Promise.all([
-            page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-            page.click('input[type="submit"]')
-        ]);
-
-        // Login hone ke baad saari cookies nikal lena
-        const cookies = await page.cookies();
+        // Header se 'set-cookie' nikalna
+        const setCookieHeaders = loginResponse.headers['set-cookie'];
         
-        // Cookies ko sahi format (name=value;) mein jodna
-        CACHED_COOKIES = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-        console.log("Successfully fetched new VIP Cookies! 🎉");
-        
+        if (setCookieHeaders) {
+            // Har cookie se uska main hissa nikal kar jodna
+            CACHED_COOKIES = setCookieHeaders.map(cookie => cookie.split(';')[0]).join('; ');
+            console.log("Successfully fetched new Cookies instantly! 🎉");
+        } else {
+            console.error("Login fail! Shayad Email/Password galat hai.");
+        }
     } catch (error) {
-        console.error("Auto-login me error aaya:", error.message);
+        console.error("Auto-login error:", error.message);
     } finally {
-        if (browser) await browser.close();
         isFetchingCookies = false;
     }
 }
@@ -61,7 +55,6 @@ async function getFreshCookies() {
 app.get('/api/stream/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
 
-    // Agar server ke paas cookie nahi hai, toh pehle login karega
     if (!CACHED_COOKIES) {
         await getFreshCookies();
     }
@@ -75,11 +68,9 @@ app.get('/api/stream/:videoId', async (req, res) => {
             }
         });
 
-        const html = response.data;
         let m3u8Url = '';
-        
-        const match1 = html.match(/hlsManifestUrl\\\\&quot;:\\\\&quot;(.*?)\\\\&quot;/);
-        const match2 = html.match(/"hlsManifestUrl":"(.*?)"/);
+        const match1 = response.data.match(/hlsManifestUrl\\\\&quot;:\\\\&quot;(.*?)\\\\&quot;/);
+        const match2 = response.data.match(/"hlsManifestUrl":"(.*?)"/);
         
         if (match1 && match1[1]) m3u8Url = decodeURIComponent(JSON.parse(`"${match1[1]}"`)).replace(/\\\\u0026/g, '&');
         else if (match2 && match2[1]) m3u8Url = match2[1].replace(/\\u0026/g, '&');
@@ -89,19 +80,18 @@ app.get('/api/stream/:videoId', async (req, res) => {
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             m3u8Response.data.pipe(res);
         } else {
-            // Agar link nahi mili (Cookie expire ho chuki hai), toh dobara fresh cookie nikalne ko bolenge
-            console.log("Cookie purani ho gayi. Nayi cookie nikal raha hu...");
-            CACHED_COOKIES = ""; // Purani cookie delete
-            await getFreshCookies(); // Dobara auto-login
-            res.status(404).send("Refreshing cookies in background... Please refresh the page in 10 seconds.");
+            console.log("Cookie purani ho gayi. API Login dobara kar raha hu...");
+            CACHED_COOKIES = ""; 
+            await getFreshCookies(); 
+            res.status(404).send("Refreshing cookies... Please refresh the page in 5 seconds.");
         }
     } catch (error) {
-        console.error("API Error:", error.message);
-        res.status(500).send("Server Error: " + error.message);
+        console.error("Stream Error:", error.message);
+        res.status(500).send("Server Error");
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Saoodify Auto-Login API is running on port ${PORT}`);
+    console.log(`Saoodify Fast API is running on port ${PORT}`);
 });
