@@ -2,54 +2,33 @@ const express = require('express');
 const axios = require('axios');
 const app = express();
 
-app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-    next();
-});
-
-async function getCookieFromGitHub() {
-    try {
-        const response = await axios.get('https://raw.githubusercontent.com/Saood96/saoodify-proxy/main/cookie.txt?t=' + Date.now());
-        return response.data.trim();
-    } catch (err) {
-        return null;
-    }
-}
-
-app.get('/api/stream/:videoId', async (req, res) => {
+// Rumble Stream & Proxy Route
+app.get('/api/rumble/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
-    const freshCookie = await getCookieFromGitHub();
-
-    if (!freshCookie) {
-        return res.status(500).send("Error: GitHub par cookie nahi mili.");
-    }
 
     try {
-        const okruUrl = `https://ok.ru/video/${videoId}`;
-        const response = await axios.get(okruUrl, {
+        // Rumble embed / video endpoint fetch karna
+        const rumbleUrl = `https://rumble.com/embed/${videoId}/`;
+        const response = await axios.get(rumbleUrl, {
             headers: {
-                'Cookie': freshCookie,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://rumble.com/'
             }
         });
 
         const html = response.data;
-        let cleanHtml = html.replace(/\\+&quot;/g, '"').replace(/&quot;/g, '"').replace(/\\"/g, '"');
-        let m3u8Url = '';
-        const match = cleanHtml.match(/"hlsManifestUrl"\s*:\s*"([^"]+)"/);
+        
+        // Rumble ke HTML se HLS (.m3u8) manifest URL extract karna
+        // (Rumble ke JSON/JS config structure ke mutabiq regex pattern)
+        const match = html.match(/"u"\s*:\s*("(https:\/\/[^"]+\.m3u8[^"]*)")/);
         
         if (match && match[1]) {
-            m3u8Url = match[1].replace(/\\u0026/g, '&').replace(/\\\\/g, '').replace(/\\/g, '');
-        }
-
-        if (m3u8Url && m3u8Url.startsWith('http')) {
+            let m3u8Url = JSON.parse(match[1]);
+            
             const m3u8Response = await axios.get(m3u8Url, {
                 headers: {
-                    'Cookie': freshCookie,
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': 'https://ok.ru/'
+                    'Referer': 'https://rumble.com/'
                 },
                 responseType: 'text'
             });
@@ -57,9 +36,8 @@ app.get('/api/stream/:videoId', async (req, res) => {
             let playlistData = m3u8Response.data;
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
-            const masterBaseUrl = `${parentUrlObj.protocol}//${parentUrlObj.host}`;
 
-            // Bulletproof URL Resolution for all chunk variations
+            // Playlist ke andar ke relative/absolute chunk URLs ko proxy se wrap karna
             playlistData = playlistData.split('\n').map(line => {
                 let trimmed = line.trim();
                 if (trimmed && !trimmed.startsWith('#')) {
@@ -67,10 +45,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
                         let absoluteUrl;
                         if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
                             absoluteUrl = new URL(trimmed);
-                        } else if (trimmed.startsWith('/')) {
-                            absoluteUrl = new URL(trimmed, masterBaseUrl);
                         } else {
-                            // Handle relative paths and sub-directories like video/ segments
                             const baseDir = m3u8Url.substring(0, m3u8Url.lastIndexOf('/') + 1);
                             absoluteUrl = new URL(trimmed, baseDir);
                         }
@@ -92,39 +67,10 @@ app.get('/api/stream/:videoId', async (req, res) => {
             return res.send(playlistData);
 
         } else {
-            res.status(404).send("Error: Video player data extract nahi ho paya.");
+            res.status(404).send("Error: Rumble HLS manifest extract nahi ho paya.");
         }
     } catch (error) {
-        console.error("API Error:", error.message);
+        console.error("Rumble API Error:", error.message);
         res.status(500).send(`Server Error: ${error.message}`);
     }
 });
-
-app.get('/api/proxy', async (req, res) => {
-    const targetUrl = req.query.url;
-    const freshCookie = await getCookieFromGitHub();
-
-    if (!targetUrl) {
-        return res.status(400).send("Missing URL parameter");
-    }
-
-    try {
-        const response = await axios.get(targetUrl, {
-            headers: {
-                'Cookie': freshCookie,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://ok.ru/'
-            },
-            responseType: 'stream'
-        });
-
-        if (response.headers['content-type']) {
-            res.setHeader('Content-Type', response.headers['content-type']);
-        }
-        response.data.pipe(res);
-    } catch (error) {
-        res.status(500).send("Proxy Error");
-    }
-});
-
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Master Proxy Running`));
