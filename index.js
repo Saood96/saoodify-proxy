@@ -58,7 +58,6 @@ app.get('/api/stream/:videoId', async (req, res) => {
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
 
-            // Direct absolute OK.ru links with proxy wrapping
             playlistData = playlistData.split('\n').map(line => {
                 if (line && !line.startsWith('#')) {
                     try {
@@ -67,7 +66,6 @@ app.get('/api/stream/:videoId', async (req, res) => {
                             absoluteUrl.search = parentSearch;
                         }
                         absoluteUrl.protocol = 'https:';
-                        // Direct absolute URL pass karna taaki blob error na aaye
                         return `https://saoodify-api.onrender.com/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
                     } catch (e) {
                         return line;
@@ -110,14 +108,9 @@ app.get('/api/proxy', async (req, res) => {
             res.setHeader('Content-Type', response.headers['content-type']);
         }
         response.data.pipe(res);
-    } scriptCatch = (error) => {
-        res.status(500).send("Proxy Error");
-    };
-    try {
-        // stream pipe done above
-    } catch (err) {
+    } catch (error) {
         res.status(500).send("Proxy Error");
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Clean Proxy API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Clean API Running`));
