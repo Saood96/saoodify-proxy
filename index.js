@@ -57,13 +57,24 @@ app.get('/api/stream/:videoId', async (req, res) => {
             let playlistData = m3u8Response.data;
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
+            const masterBaseUrl = `${parentUrlObj.protocol}//${parentUrlObj.host}`;
 
-            // Absolute URL resolution for every chunk line
+            // Bulletproof URL Resolution for all chunk variations
             playlistData = playlistData.split('\n').map(line => {
                 let trimmed = line.trim();
                 if (trimmed && !trimmed.startsWith('#')) {
                     try {
-                        let absoluteUrl = new URL(trimmed, m3u8Url);
+                        let absoluteUrl;
+                        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                            absoluteUrl = new URL(trimmed);
+                        } else if (trimmed.startsWith('/')) {
+                            absoluteUrl = new URL(trimmed, masterBaseUrl);
+                        } else {
+                            // Handle relative paths and sub-directories like video/ segments
+                            const baseDir = m3u8Url.substring(0, m3u8Url.lastIndexOf('/') + 1);
+                            absoluteUrl = new URL(trimmed, baseDir);
+                        }
+
                         if (!absoluteUrl.search && parentSearch) {
                             absoluteUrl.search = parentSearch;
                         }
@@ -116,4 +127,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final Fixed Proxy Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Master Proxy Running`));
