@@ -9,24 +9,14 @@ app.use((req, res, next) => {
     next();
 });
 
-// GitHub se raw cookie text uthane ka function
-async function getCookieFromGitHub() {
-    try {
-        // Cache rokne ke liye time add kiya gaya hai
-        const response = await axios.get('https://raw.githubusercontent.com/Saood96/saoodify-proxy/main/cookie.txt?t=' + Date.now());
-        return response.data.trim();
-    } catch (err) {
-        console.error("GitHub se cookie abhi bani nahi hai.");
-        return null;
-    }
-}
-
 app.get('/api/stream/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
-    const freshCookie = await getCookieFromGitHub();
+    
+    // Cookie ab seedha Render ke Environment Variable se aayegi
+    const freshCookie = process.env.OKRU_COOKIE; 
 
     if (!freshCookie) {
-        return res.status(500).send("System updating... Please refresh in 2 minutes.");
+        return res.status(500).send("Error: Render Dashboard me OKRU_COOKIE add nahi kiya gaya hai.");
     }
 
     try {
@@ -52,7 +42,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             m3u8Response.data.pipe(res);
         } else {
-            res.status(404).send("Error: Video link block ho gayi hai. GitHub Action chalne ka wait karein.");
+            res.status(404).send("Error: Cookie expire ho chuki hai. Kripya Render par nayi cookie daalein.");
         }
     } catch (error) {
         console.error("API Error:", error.message);
@@ -62,5 +52,5 @@ app.get('/api/stream/:videoId', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Saoodify Action API is running on port ${PORT}`);
+    console.log(`Saoodify Final Stable API is running on port ${PORT}`);
 });
