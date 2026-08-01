@@ -55,13 +55,10 @@ app.get('/api/stream/:videoId', async (req, res) => {
             });
 
             let playlistData = m3u8Response.data;
-            
-            // 🔴 HARDCODED HTTPS HOST: Ab kabhi http generate nahi hoga!
-            const hostUrl = `https://saoodify-api.onrender.com`;
-            
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
 
+            // Direct absolute OK.ru links with proxy wrapping
             playlistData = playlistData.split('\n').map(line => {
                 if (line && !line.startsWith('#')) {
                     try {
@@ -70,7 +67,8 @@ app.get('/api/stream/:videoId', async (req, res) => {
                             absoluteUrl.search = parentSearch;
                         }
                         absoluteUrl.protocol = 'https:';
-                        return `${hostUrl}/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
+                        // Direct absolute URL pass karna taaki blob error na aaye
+                        return `https://saoodify-api.onrender.com/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
                     } catch (e) {
                         return line;
                     }
@@ -112,9 +110,14 @@ app.get('/api/proxy', async (req, res) => {
             res.setHeader('Content-Type', response.headers['content-type']);
         }
         response.data.pipe(res);
-    } catch (error) {
+    } scriptCatch = (error) => {
+        res.status(500).send("Proxy Error");
+    };
+    try {
+        // stream pipe done above
+    } catch (err) {
         res.status(500).send("Proxy Error");
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Fixed HTTPS API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Clean Proxy API Running`));
