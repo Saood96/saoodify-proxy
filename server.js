@@ -12,7 +12,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
     // 🔴 Security Layer 1: Referer Lock
     // Yeh check karega ki request extension/IDM se toh nahi aayi
     const referer = req.headers.referer || req.headers.origin;
-    if (!referer || !referer.includes('saoodify.com')) {
+    if (!referer || !referer.includes('arnetsolution.com')) {
         // Agar local test kar rahe hain (localhost), toh is 'if' block ko temporarily comment kar dein
         return res.status(403).send("Access Denied: Direct downloading is not allowed.");
     }
