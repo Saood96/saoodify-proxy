@@ -55,7 +55,10 @@ app.get('/api/stream/:videoId', async (req, res) => {
             });
 
             let playlistData = m3u8Response.data;
-            const hostUrl = `${req.protocol}://${req.get('host')}`;
+            
+            // 🔴 HARDCODED HTTPS HOST: Ab kabhi http generate nahi hoga!
+            const hostUrl = `https://saoodify-api.onrender.com`;
+            
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
 
@@ -114,4 +117,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Index Server Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Fixed HTTPS API Running`));
