@@ -9,18 +9,26 @@ app.use((req, res, next) => {
     next();
 });
 
+// GitHub se direct raw cookie fetch karna
+async function getCookieFromGitHub() {
+    try {
+        // Cache bypass karne ke liye Date.now() lagaya hai
+        const response = await axios.get('https://raw.githubusercontent.com/Saood96/saoodify-proxy/main/cookie.txt?t=' + Date.now());
+        return response.data.trim();
+    } catch (err) {
+        return null;
+    }
+}
+
 app.get('/api/stream/:videoId', async (req, res) => {
-    const videoId = req.params.videoId;
-    
-    // Cookie ab seedha Render ke Environment Variable se aayegi
-    const freshCookie = process.env.OKRU_COOKIE; 
+    const freshCookie = await getCookieFromGitHub();
 
     if (!freshCookie) {
-        return res.status(500).send("Error: Render Dashboard me OKRU_COOKIE add nahi kiya gaya hai.");
+        return res.status(500).send("Error: GitHub par cookie nahi mili.");
     }
 
     try {
-        const okruUrl = `https://ok.ru/video/${videoId}`;
+        const okruUrl = `https://ok.ru/video/${req.params.videoId}`;
         const response = await axios.get(okruUrl, {
             headers: {
                 'Cookie': freshCookie,
@@ -30,7 +38,6 @@ app.get('/api/stream/:videoId', async (req, res) => {
 
         const html = response.data;
         let m3u8Url = '';
-        
         const match1 = html.match(/hlsManifestUrl\\\\&quot;:\\\\&quot;(.*?)\\\\&quot;/);
         const match2 = html.match(/"hlsManifestUrl":"(.*?)"/);
         
@@ -42,15 +49,12 @@ app.get('/api/stream/:videoId', async (req, res) => {
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             m3u8Response.data.pipe(res);
         } else {
-            res.status(404).send("Error: Cookie expire ho chuki hai. Kripya Render par nayi cookie daalein.");
+            // Naye code me yeh error message aayega!
+            res.status(404).send("Cookie expire ho gayi. Kripya PC Bot ko ek baar run karein.");
         }
     } catch (error) {
-        console.error("API Error:", error.message);
         res.status(500).send("Server Error");
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Saoodify Final Stable API is running on port ${PORT}`);
-});
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify API Running`));
