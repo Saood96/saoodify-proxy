@@ -45,9 +45,10 @@ app.get('/api/stream/:videoId', async (req, res) => {
         }
 
         if (m3u8Url && m3u8Url.startsWith('http')) {
-            console.log("✅ Streaming m3u8 link via Render:", m3u8Url);
-            
-            // OK.ru se m3u8 file mangwana with proper headers
+            // Base domain nikalna (jaise https://vd196.okcdn.ru)
+            const urlObj = new URL(m3u8Url);
+            const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+
             const m3u8Response = await axios.get(m3u8Url, {
                 headers: {
                     'Cookie': freshCookie,
@@ -57,9 +58,18 @@ app.get('/api/stream/:videoId', async (req, res) => {
                 responseType: 'text'
             });
 
-            // Playlist ke andar ke relative links ko absolute bana dena taaki 404 na aaye
             let playlistData = m3u8Response.data;
-            
+
+            // Playlist ke har chunk link ko absolute URL mein badalna
+            playlistData = playlistData.split('\n').map(line => {
+                if (line && !line.startsWith('#')) {
+                    if (line.startsWith('http')) return line;
+                    if (line.startsWith('/')) return baseUrl + line;
+                    return baseUrl + '/' + line;
+                }
+                return line;
+            }).join('\n');
+
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             return res.send(playlistData);
 
@@ -72,4 +82,4 @@ app.get('/api/stream/:videoId', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final Stream API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Absolute URL API Running`));
