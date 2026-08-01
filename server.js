@@ -57,14 +57,21 @@ app.get('/api/stream/:videoId', async (req, res) => {
 
             let playlistData = m3u8Response.data;
             const hostUrl = `${req.protocol}://${req.get('host')}`;
+            
+            // Parent URL ke search params (tokens) nikalna
+            const parentUrlObj = new URL(m3u8Url);
+            const parentSearch = parentUrlObj.search;
 
-            // Smart URL Resolution using new URL() to fix 404 on chunks
+            // Har chunk ke sath token attach karna taaki 404 na aaye
             playlistData = playlistData.split('\n').map(line => {
                 if (line && !line.startsWith('#')) {
                     try {
-                        // Yeh line kisi bhi relative ya absolute URL ko 100% accurate bana degi
-                        const absoluteUrl = new URL(line, m3u8Url).href;
-                        return `${hostUrl}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+                        const absoluteUrl = new URL(line, m3u8Url);
+                        // Agar chunk ke paas query params nahi hain, toh parent wale jod do
+                        if (!absoluteUrl.search && parentSearch) {
+                            absoluteUrl.search = parentSearch;
+                        }
+                        return `${hostUrl}/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
                     } catch (e) {
                         return line;
                     }
@@ -84,7 +91,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
     }
 });
 
-// 2. Proxy Route jo chunks ko fetch karega
+// 2. Proxy Route jo chunks ko secure tokens ke sath fetch karega
 app.get('/api/proxy', async (req, res) => {
     const targetUrl = req.query.url;
     const freshCookie = await getCookieFromGitHub();
@@ -112,4 +119,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Perfect Streaming API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Token-Secure API Running`));
