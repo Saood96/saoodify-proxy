@@ -58,24 +58,17 @@ app.get('/api/stream/:videoId', async (req, res) => {
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
 
-            // STRICT PROXY WRAPPER: Har chunk ko 100% proxy ke through bhejna
+            // Absolute URL resolution for every chunk line
             playlistData = playlistData.split('\n').map(line => {
                 let trimmed = line.trim();
                 if (trimmed && !trimmed.startsWith('#')) {
                     try {
-                        let absoluteUrl;
-                        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                            absoluteUrl = new URL(trimmed);
-                        } else {
-                            absoluteUrl = new URL(trimmed, m3u8Url);
-                        }
-
+                        let absoluteUrl = new URL(trimmed, m3u8Url);
                         if (!absoluteUrl.search && parentSearch) {
                             absoluteUrl.search = parentSearch;
                         }
                         absoluteUrl.protocol = 'https:';
                         
-                        // Forcefully wrap every single chunk into the proxy route
                         return `https://saoodify-api.onrender.com/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
                     } catch (e) {
                         return line;
@@ -123,4 +116,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Ultimate Strict Proxy Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final Fixed Proxy Running`));
