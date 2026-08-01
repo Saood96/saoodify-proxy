@@ -58,17 +58,16 @@ app.get('/api/stream/:videoId', async (req, res) => {
             let playlistData = m3u8Response.data;
             const hostUrl = `${req.protocol}://${req.get('host')}`;
 
-            // Chunks ko apne server ke through route karna taaki 404 error na aaye
+            // Smart URL Resolution using new URL() to fix 404 on chunks
             playlistData = playlistData.split('\n').map(line => {
                 if (line && !line.startsWith('#')) {
-                    let absoluteUrl = line;
-                    if (!line.startsWith('http')) {
-                        const urlObj = new URL(m3u8Url);
-                        const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
-                        absoluteUrl = line.startsWith('/') ? baseUrl + line : baseUrl + '/' + line;
+                    try {
+                        // Yeh line kisi bhi relative ya absolute URL ko 100% accurate bana degi
+                        const absoluteUrl = new URL(line, m3u8Url).href;
+                        return `${hostUrl}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+                    } catch (e) {
+                        return line;
                     }
-                    // Har chunk ko hamari proxy API par redirect kar do
-                    return `${hostUrl}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
                 }
                 return line;
             }).join('\n');
@@ -85,7 +84,7 @@ app.get('/api/stream/:videoId', async (req, res) => {
     }
 });
 
-// 2. Proxy Route jo asli video chunks ko fetch karke browser ko dega
+// 2. Proxy Route jo chunks ko fetch karega
 app.get('/api/proxy', async (req, res) => {
     const targetUrl = req.query.url;
     const freshCookie = await getCookieFromGitHub();
@@ -104,7 +103,6 @@ app.get('/api/proxy', async (req, res) => {
             responseType: 'stream'
         });
 
-        // Content headers pass karna
         if (response.headers['content-type']) {
             res.setHeader('Content-Type', response.headers['content-type']);
         }
@@ -114,4 +112,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Ultimate Proxy API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Perfect Streaming API Running`));
