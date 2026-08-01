@@ -7,32 +7,36 @@ const fs = require('fs');
         const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
         const page = await browser.newPage();
         
-        // Robot ko ek asli Mobile Phone jaisa banana taaki OK.ru block na kare
-        await page.setUserAgent('Mozilla/5.0 (Linux; Android 10; SM-G970F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.72 Mobile Safari/537.36');
+        // Robot ko ek asli Windows PC jaisa banana
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
         
-        console.log("OK.ru open kar raha hu...");
-        // 'networkidle2' ka matlab hai ki jab tak page poora load na ho jaye, wait karo
-        await page.goto('https://m.ok.ru/', { waitUntil: 'networkidle2' });
+        console.log("OK.ru Desktop site open kar raha hu...");
+        await page.goto('https://ok.ru/', { waitUntil: 'networkidle2' });
         
         console.log("Login box aane ka wait kar raha hu...");
-        // Yahan robot maximum 15 second tak login box ka wait karega
-        await page.waitForSelector('input[name="fr.login"]', { timeout: 15000 });
+        // Desktop version mein box ka naam 'st.email' hota hai
+        await page.waitForSelector('input[name="st.email"]', { timeout: 15000 });
         
         console.log("Details daal raha hu...");
-        await page.type('input[name="fr.login"]', process.env.OKRU_EMAIL);
-        await page.type('input[name="fr.password"]', process.env.OKRU_PASSWORD);
+        await page.type('input[name="st.email"]', process.env.OKRU_EMAIL);
+        await page.type('input[name="st.password"]', process.env.OKRU_PASSWORD);
         
         console.log("Login button click kar raha hu...");
         await Promise.all([
             page.waitForNavigation({ waitUntil: 'networkidle2' }),
-            page.click('input[type="submit"]')
+            page.click('input[type="submit"], input[value="Log in"]') 
         ]);
         
         const cookies = await page.cookies();
         const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
         
+        // Check karna ki login sachi mein hua ya nahi (AUTHCODE aana zaroori hai)
+        if (!cookieStr.includes("AUTHCODE")) {
+            throw new Error("Login fail ho gaya! Shayad OK.ru ne Captcha laga diya hai.");
+        }
+        
         fs.writeFileSync('cookie.txt', cookieStr);
-        console.log("VIP Cookie successfully update ho gayi! Saoodify is ready.");
+        console.log("VIP Cookie successfully update ho gayi! 🎉 Saoodify is ready.");
         
         await browser.close();
     } catch (error) {
