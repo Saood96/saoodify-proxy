@@ -31,56 +31,44 @@ app.get('/api/stream/:videoId', async (req, res) => {
         const response = await axios.get(okruUrl, {
             headers: {
                 'Cookie': freshCookie,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
             }
         });
 
         const html = response.data;
-        let m3u8Url = '';
         
-        // Sabhi possible formats ko dhoondhne ke liye smart patterns
-        const patterns = [
-            /hlsManifestUrl["']?\s*[:=]\s*["']([^"']+)["']/i,
-            /\\?"hlsManifestUrl\\?"\s*:\s*\\?"(.*?)\\?"/,
-            /https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i
-        ];
-
-        for (let pattern of patterns) {
-            const match = html.match(pattern);
-            if (match && match[1]) {
-                m3u8Url = match[1].replace(/\\u0026/g, '&').replace(/\\\\/g, '');
-                break;
-            } else if (match && match[0] && match[0].startsWith('http')) {
-                m3u8Url = match[0].replace(/\\u0026/g, '&');
-                break;
-            }
+        // SUPER SMART FIX: OK.ru ke saare ajeeb quotes (\&quot;) ko normal quotes (") me badal do
+        let cleanHtml = html.replace(/\\+&quot;/g, '"').replace(/&quot;/g, '"').replace(/\\"/g, '"');
+        
+        let m3u8Url = '';
+        // Ab simply normal "hlsManifestUrl" dhoondho (koi galti nahi hogi)
+        const match = cleanHtml.match(/"hlsManifestUrl"\s*:\s*"([^"]+)"/);
+        
+        if (match && match[1]) {
+            // Link ke andar ke extra symbols clean karna
+            m3u8Url = match[1].replace(/\\u0026/g, '&').replace(/\\\\/g, '').replace(/\\/g, '');
         }
 
-        // Agar direct regex fail ho, toh text me se .m3u8 link extract karna
-        if (!m3u8Url) {
-            const m3u8Index = html.indexOf('.m3u8');
-            if (m3u8Index !== -1) {
-                let start = m3u8Index;
-                while (start > 0 && !['"', "'", '(', ' '].includes(html[start])) {
-                    start--;
-                }
-                m3u8Url = html.substring(start + 1, m3u8Index + 5);
+        if (m3u8Url && m3u8Url.startsWith('http')) {
+            console.log("✅ Perfect m3u8 link mil gaya:", m3u8Url);
+            
+            try {
+                // Ab actual video stream ko fetch karo
+                const m3u8Response = await axios.get(m3u8Url, { responseType: 'stream' });
+                res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+                m3u8Response.data.pipe(res);
+            } catch (streamError) {
+                console.error("Stream Error:", streamError.message);
+                res.status(500).send("Error: OK.ru video fetch fail ho gaya.");
             }
-        }
-
-        if (m3u8Url) {
-            console.log("Found m3u8:", m3u8Url);
-            const m3u8Response = await axios.get(m3u8Url, { responseType: 'stream' });
-            res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-            m3u8Response.data.pipe(res);
         } else {
-            // Debugging ke liye HTML print kara lena ya error dena
-            res.status(404).send("Error: Video player data extract nahi ho paya. OK.ru ne layout change kiya hai.");
+            console.error("Link nahi mila. HTML kachra saaf hone ke baad bhi pattern match nahi hua.");
+            res.status(404).send("Error: Video player data extract nahi ho paya.");
         }
     } catch (error) {
         console.error("API Error:", error.message);
-        res.status(500).send("Server Error: " + error.message);
+        res.status(error.response ? error.response.status : 500).send(`Server Error: ${error.message}`);
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Final Stable API Running`));
