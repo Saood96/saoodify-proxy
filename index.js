@@ -58,14 +58,23 @@ app.get('/api/stream/:videoId', async (req, res) => {
             const parentUrlObj = new URL(m3u8Url);
             const parentSearch = parentUrlObj.search;
 
+            // Ultra-robust URL mapping to eliminate 404 on relative segments
             playlistData = playlistData.split('\n').map(line => {
                 if (line && !line.startsWith('#')) {
                     try {
-                        const absoluteUrl = new URL(line, m3u8Url);
+                        let absoluteUrl;
+                        if (line.startsWith('http://') || line.startsWith('https://')) {
+                            absoluteUrl = new URL(line);
+                        } else {
+                            // Automatically resolve relative paths against the exact m3u8 base URL
+                            absoluteUrl = new URL(line, m3u8Url);
+                        }
+
                         if (!absoluteUrl.search && parentSearch) {
                             absoluteUrl.search = parentSearch;
                         }
                         absoluteUrl.protocol = 'https:';
+                        
                         return `https://saoodify-api.onrender.com/api/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
                     } catch (e) {
                         return line;
@@ -113,4 +122,4 @@ app.get('/api/proxy', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Clean API Running`));
+app.listen(process.env.PORT || 3000, () => console.log(`Saoodify Absolute Resolver API Running`));
