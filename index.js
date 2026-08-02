@@ -15,37 +15,47 @@ app.use((req, res, next) => {
 
 // Health Check
 app.get('/', (req, res) => {
-    res.status(200).send("Saoodify API: MP4 Extractor Server Live Hai!");
+    res.status(200).send("Saoodify API: Private MP4 Extractor Server Live Hai!");
 });
 
-// DIRECT MP4 EXTRACTION ROUTE (No Chunk Proxying - Zero Load!)
+// Helper: Fetch Cookie from GitHub
+async function getCookieFromGitHub() {
+    try {
+        const response = await axios.get('https://raw.githubusercontent.com/Saood96/saoodify-proxy/main/cookie.txt?t=' + Date.now());
+        return response.data.trim();
+    } catch (err) {
+        return null;
+    }
+}
+
+// DIRECT MP4 EXTRACTION ROUTE (Cookie Fix for Private/Friends Videos)
 app.get('/api/direct/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
+    const freshCookie = await getCookieFromGitHub();
+
+    if (!freshCookie) {
+        return res.status(500).json({ status: "error", message: "GitHub par cookie nahi mili." });
+    }
 
     try {
-        // OK.ru ka embed page fetch karna
         const response = await axios.get(`https://ok.ru/videoembed/${videoId}`, {
             headers: {
+                'Cookie': freshCookie, // Yahan cookie pass ho rahi hai
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://ok.ru/'
             }
         });
 
         const html = response.data;
-        
-        // HTML se data-options extract karna
         const match = html.match(/data-options="([^"]+)"/);
         
         if (match && match[1]) {
-            // Unescape HTML entities (&quot; ko " mein convert karna)
             const cleanJson = match[1].replace(/&quot;/g, '"').replace(/\\\\/g, '\\');
             const data = JSON.parse(cleanJson);
             
-            // Metadata URL nikalna aur call karna
             const metadataUrl = decodeURIComponent(data.flashvars.metadataUrl);
             const metadataResponse = await axios.get(metadataUrl);
             
-            // Videos array se best quality (hd, sd, ya lowest) nikalna
             const videos = metadataResponse.data.videos;
             
             // Quality preference: HD -> SD -> low
@@ -55,7 +65,6 @@ app.get('/api/direct/:videoId', async (req, res) => {
                            || videos[0];
 
             if (bestVideo && bestVideo.url) {
-                // Direct MP4 link JSON mein frontend ko bhej do
                 return res.json({ status: "success", url: bestVideo.url });
             } else {
                 return res.status(404).json({ status: "error", message: "Video link nahi mila." });
@@ -70,4 +79,4 @@ app.get('/api/direct/:videoId', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Saoodify MP4 Extractor Running on Port ${PORT}`));
+app.listen(PORT, () => console.log(`Saoodify Private MP4 Extractor Running on Port ${PORT}`));
