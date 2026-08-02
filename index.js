@@ -28,7 +28,7 @@ async function getCookieFromGitHub() {
     }
 }
 
-// DIRECT MP4 EXTRACTION ROUTE (Cookie Fix for Private/Friends Videos)
+// DIRECT MP4 EXTRACTION ROUTE (Cookie Fix Applied to BOTH Requests)
 app.get('/api/direct/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
     const freshCookie = await getCookieFromGitHub();
@@ -38,9 +38,10 @@ app.get('/api/direct/:videoId', async (req, res) => {
     }
 
     try {
+        // Request 1: Embed Page
         const response = await axios.get(`https://ok.ru/videoembed/${videoId}`, {
             headers: {
-                'Cookie': freshCookie, // Yahan cookie pass ho rahi hai
+                'Cookie': freshCookie,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://ok.ru/'
             }
@@ -54,7 +55,15 @@ app.get('/api/direct/:videoId', async (req, res) => {
             const data = JSON.parse(cleanJson);
             
             const metadataUrl = decodeURIComponent(data.flashvars.metadataUrl);
-            const metadataResponse = await axios.get(metadataUrl);
+            
+            // YAHAN THI GALTI: Metadata request mein bhi Cookie bhejni zaroori hai!
+            const metadataResponse = await axios.get(metadataUrl, {
+                headers: {
+                    'Cookie': freshCookie,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': 'https://ok.ru/'
+                }
+            });
             
             const videos = metadataResponse.data.videos;
             
