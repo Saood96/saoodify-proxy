@@ -28,7 +28,7 @@ async function getCookieFromGitHub() {
     }
 }
 
-// DIRECT MP4 EXTRACTION ROUTE (Cookie Fix Applied to BOTH Requests)
+// DIRECT MP4 EXTRACTION ROUTE
 app.get('/api/direct/:videoId', async (req, res) => {
     const videoId = req.params.videoId;
     const freshCookie = await getCookieFromGitHub();
@@ -54,9 +54,22 @@ app.get('/api/direct/:videoId', async (req, res) => {
             const cleanJson = match[1].replace(/&quot;/g, '"').replace(/\\\\/g, '\\');
             const data = JSON.parse(cleanJson);
             
-            const metadataUrl = decodeURIComponent(data.flashvars.metadataUrl);
+            // Check agar metadataUrl exist karta hai
+            if (!data.flashvars || !data.flashvars.metadataUrl) {
+                return res.status(404).json({ status: "error", message: "Private video access denied ya metadata URL nahi mila." });
+            }
+
+            let metadataUrl = decodeURIComponent(data.flashvars.metadataUrl);
             
-            // YAHAN THI GALTI: Metadata request mein bhi Cookie bhejni zaroori hai!
+            // --- FIX: Invalid URL Issue ---
+            // Agar OK.ru URL aadha bhejta hai, toh use fix karna
+            if (metadataUrl.startsWith('//')) {
+                metadataUrl = 'https:' + metadataUrl;
+            } else if (metadataUrl.startsWith('/')) {
+                metadataUrl = 'https://ok.ru' + metadataUrl;
+            }
+            
+            // Request 2: Metadata fetch (With Cookie)
             const metadataResponse = await axios.get(metadataUrl, {
                 headers: {
                     'Cookie': freshCookie,
@@ -66,6 +79,9 @@ app.get('/api/direct/:videoId', async (req, res) => {
             });
             
             const videos = metadataResponse.data.videos;
+            if (!videos || videos.length === 0) {
+                 return res.status(404).json({ status: "error", message: "Metadata mili lekin MP4 links nahi mile." });
+            }
             
             // Quality preference: HD -> SD -> low
             const bestVideo = videos.find(v => v.name === 'hd') 
@@ -76,14 +92,14 @@ app.get('/api/direct/:videoId', async (req, res) => {
             if (bestVideo && bestVideo.url) {
                 return res.json({ status: "success", url: bestVideo.url });
             } else {
-                return res.status(404).json({ status: "error", message: "Video link nahi mila." });
+                return res.status(404).json({ status: "error", message: "Final Video link nahi mila." });
             }
         } else {
-            return res.status(404).json({ status: "error", message: "OK.ru data extract nahi hua." });
+            return res.status(404).json({ status: "error", message: "OK.ru html se data-options extract nahi hua." });
         }
     } catch (error) {
         console.error("Extraction Error:", error.message);
-        return res.status(500).json({ status: "error", message: "Server Error" });
+        return res.status(500).json({ status: "error", message: `Server Error: ${error.message}` });
     }
 });
 
